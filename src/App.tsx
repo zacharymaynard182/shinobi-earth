@@ -38,17 +38,18 @@ export default function App() {
       rivers: true,
       terrain: false,
       characters: false,
+      gisAnalysis: false,
     })
 
   const handleLayerChange = (
-    layer: keyof LayerState,
-    enabled: boolean,
-  ) => {
-    setLayers((current) => ({
-      ...current,
-      [layer]: enabled,
-    }))
-  }
+  layer: keyof LayerState,
+  enabled: boolean,
+) => {
+  setLayers((previous) => ({
+    ...previous,
+    [layer]: enabled,
+  }))
+}
 
   /*
    * Character selection.
