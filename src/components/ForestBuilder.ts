@@ -421,18 +421,21 @@ function createForestPatch(
       )
 
     /*
-     * 260m - 440m
-     *
-     * Large enough to be visible from
-     * the current Konoha camera.
-     */
+    * Natural procedural tree scale.
+    *
+    * Trees become visible at the current
+    * Konoha camera distance without becoming
+    * giant structures.
+    *
+    * 45m - 100m
+    */
     const height =
-      260 +
-      sizeRandom * 180
+        45 +
+        sizeRandom * 55
 
     const radius =
-      52 +
-      sizeRandom * 32
+        10 +
+        sizeRandom * 9
 
     const treeColor =
       getTreeColor(
