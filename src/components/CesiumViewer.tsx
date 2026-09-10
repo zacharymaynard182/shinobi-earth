@@ -1461,6 +1461,22 @@ export default function CesiumViewer({
     onFlyToComplete,
   ])
 
+    /*
+   * GIS Analysis ON/OFF.
+   */
+  useEffect(() => {
+    const viewer = viewerRef.current
+
+    if (!viewer) {
+      return
+    }
+
+    setGISAnalysisVisibility(
+      viewer,
+      layers.gisAnalysis,
+    )
+  }, [layers.gisAnalysis])
+
   return (
     <div
       ref={containerRef}
