@@ -35,6 +35,11 @@ import { createForest } from './ForestBuilder'
 import { createDistricts } from './DistrictBuilder'
 import { createRivers } from './RiverBuilder'
 
+import {
+  createGISAnalysisLayer,
+  setGISAnalysisVisibility,
+} from './GISAnalysisLayer'
+
 interface CesiumViewerProps {
   layers: LayerState
 
@@ -916,6 +921,8 @@ export default function CesiumViewer({
      * Districts.
      */
     createDistricts(viewer)
+    createGISAnalysisLayer(viewer)
+    setGISAnalysisVisibility(viewer, false)
 
     /*
      * Villages.

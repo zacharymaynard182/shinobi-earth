@@ -5,6 +5,7 @@ export interface LayerState {
   countries: boolean
   terrain: boolean
   characters: boolean
+  gisAnalysis: boolean
 }
 
 interface LayerPanelProps {
@@ -59,6 +60,12 @@ const layerDefinitions: LayerDefinition[] = [
     label: 'Characters',
     description: 'Known character locations',
   },
+  {
+    id: 'gisAnalysis',
+    icon: '⌗',
+    label: 'GIS Analysis',
+    description: 'Spatial analysis overlays',
+  },
 ]
 
 export default function LayerPanel({
@@ -69,7 +76,10 @@ export default function LayerPanel({
     <div className="layer-panel">
       <div className="panel-header">
         <div>
-          <span className="panel-kicker">MAP CONFIGURATION</span>
+          <span className="panel-kicker">
+            MAP CONFIGURATION
+          </span>
+
           <h2>WORLD LAYERS</h2>
         </div>
 
@@ -93,6 +103,7 @@ export default function LayerPanel({
 
             <div className="layer-content">
               <strong>{layer.label}</strong>
+
               <span>{layer.description}</span>
             </div>
 
