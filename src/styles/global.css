@@ -1789,3 +1789,178 @@ button {
     max-width: 150px;
   }
 }
+
+/* =====================================================
+   FIXED GIS ANALYSIS DASHBOARD
+   ===================================================== */
+
+.gis-analysis-panel {
+  position: fixed;
+
+  /*
+   * Keep below the TopBar.
+   */
+  top: 76px;
+
+  /*
+   * Keep against the right side.
+   */
+  right: 24px;
+
+  width: 310px;
+  max-height: calc(100vh - 100px);
+
+  overflow-y: auto;
+
+  box-sizing: border-box;
+
+  padding: 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(10, 16, 25, 0.97),
+      rgba(7, 12, 19, 0.95)
+    );
+
+  border: 1px solid
+    rgba(90, 130, 170, 0.35);
+
+  border-radius: 10px;
+
+  box-shadow:
+    0 18px 45px
+    rgba(0, 0, 0, 0.38);
+
+  color: #e8f0f7;
+
+  /*
+   * Above Cesium and other map content.
+   */
+  z-index: 1000;
+
+  /*
+   * Do not move with Cesium camera.
+   */
+  transform: none;
+
+  /*
+   * Fixed screen UI.
+   */
+  pointer-events: auto;
+
+  user-select: none;
+
+  backdrop-filter: blur(12px);
+}
+
+
+/* =====================================================
+   TOP BAR
+   ===================================================== */
+
+.top-bar {
+  position: fixed;
+
+  top: 0;
+  left: 0;
+  right: 0;
+
+  height: 64px;
+
+  z-index: 1100;
+}
+
+
+/* =====================================================
+   SIDEBAR
+   ===================================================== */
+
+.sidebar {
+  position: fixed;
+
+  top: 64px;
+  left: 0;
+  bottom: 0;
+
+  width: 280px;
+
+  z-index: 1050;
+
+  overflow-y: auto;
+}
+
+
+/* =====================================================
+   CESIUM VIEW
+   ===================================================== */
+
+.cesium-viewer-container {
+  position: fixed;
+
+  top: 64px;
+  left: 280px;
+  right: 0;
+  bottom: 0;
+
+  z-index: 1;
+}
+
+
+/* =====================================================
+   RESPONSIVE
+   ===================================================== */
+
+@media (max-width: 1100px) {
+  .gis-analysis-panel {
+    right: 16px;
+
+    width: 290px;
+  }
+}
+
+
+@media (max-width: 800px) {
+  .gis-analysis-panel {
+    top: 70px;
+    right: 12px;
+
+    width: 270px;
+
+    max-height:
+      calc(100vh - 84px);
+  }
+
+  .sidebar {
+    width: 240px;
+  }
+
+  .cesium-viewer-container {
+    left: 240px;
+  }
+}
+
+
+@media (max-width: 600px) {
+  .gis-analysis-panel {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+
+    width: auto;
+
+    max-height: 48vh;
+  }
+
+  .sidebar {
+    width: 220px;
+  }
+
+  .cesium-viewer-container {
+    left: 220px;
+  }
+}
+
+
+

@@ -4,11 +4,14 @@ import {
   useState,
 } from 'react'
 
+import { createPortal } from 'react-dom'
+
 import TopBar from './components/TopBar'
 import Sidebar from './components/Sidebar'
 import CesiumViewer from './components/CesiumViewer'
 import CharacterPanel from './components/CharacterPanel'
 import FeatureInfoPanel from './components/FeatureInfoPanel'
+import GISAnalysisPanel from './components/GISAnalysisPanel'
 
 import type { LayerState } from './components/LayerPanel'
 import type { Character } from './types/shinobi'
@@ -42,14 +45,14 @@ export default function App() {
     })
 
   const handleLayerChange = (
-  layer: keyof LayerState,
-  enabled: boolean,
-) => {
-  setLayers((previous) => ({
-    ...previous,
-    [layer]: enabled,
-  }))
-}
+    layer: keyof LayerState,
+    enabled: boolean,
+  ) => {
+    setLayers((previous) => ({
+      ...previous,
+      [layer]: enabled,
+    }))
+  }
 
   /*
    * Character selection.
@@ -59,10 +62,6 @@ export default function App() {
       (character: Character | null) => {
         setSelectedCharacter(character)
 
-        /*
-         * Close feature information
-         * when selecting a character.
-         */
         if (character) {
           setSelectedFeature(null)
           setFlyToCharacter(character)
@@ -73,19 +72,12 @@ export default function App() {
 
   /*
    * Feature selection.
-   *
-   * Buildings and districts are sent
-   * from CesiumViewer.
    */
   const handleFeatureSelect =
     useCallback(
       (feature: FeatureInfo | null) => {
         setSelectedFeature(feature)
 
-        /*
-         * Close character panel when
-         * selecting a GIS feature.
-         */
         if (feature) {
           setSelectedCharacter(null)
           setFlyToCharacter(null)
@@ -145,19 +137,15 @@ export default function App() {
         <main className="map-area">
           <CesiumViewer
             layers={layers}
-
             onCharacterSelect={
               handleCharacterSelect
             }
-
             onFeatureSelect={
               handleFeatureSelect
             }
-
             flyToCharacter={
               flyToCharacter
             }
-
             onFlyToComplete={
               handleFlyToComplete
             }
@@ -220,18 +208,14 @@ export default function App() {
             </div>
           </div>
 
-          {/*
-           * Character information.
-           */}
+          {/* Character information */}
           <CharacterPanel
             character={
               selectedCharacter
             }
-
             onClose={
               handleCloseCharacterPanel
             }
-
             onFlyTo={() => {
               if (selectedCharacter) {
                 setFlyToCharacter(
@@ -241,23 +225,37 @@ export default function App() {
             }}
           />
 
-          {/*
-           * GIS Feature information.
-           *
-           * Displays Building / District
-           * attributes when clicked.
-           */}
+          {/* GIS feature information */}
           <FeatureInfoPanel
             feature={
               selectedFeature
             }
-
             onClose={
               handleCloseFeaturePanel
             }
           />
         </main>
       </div>
+
+      {/*
+       * =================================================
+       * FIXED GIS ANALYSIS DASHBOARD
+       *
+       * IMPORTANT:
+       * Render outside .map-area and directly into
+       * document.body.
+       *
+       * Cesium camera movement can never move this UI.
+       * =================================================
+       */}
+
+        {typeof document !== 'undefined' &&
+          createPortal(
+            <GISAnalysisPanel
+              visible={layers.gisAnalysis}
+            />,
+            document.body,
+          )}
     </div>
   )
 }

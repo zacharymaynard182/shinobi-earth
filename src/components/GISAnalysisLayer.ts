@@ -1,3 +1,4 @@
+
 import {
   Cartesian3,
   Cartographic,
@@ -9,16 +10,76 @@ import {
 const CENTER_LON = 140.2
 const CENTER_LAT = 34.7
 
-function metersToLon(meters: number, latitude: number) {
+const ANALYSIS_PREFIX = 'analysis-'
+
+function metersToLon(
+  meters: number,
+  latitude: number,
+) {
   return (
     meters /
-    (111000 * Math.cos((latitude * Math.PI) / 180))
+    (111000 *
+      Math.cos(
+        (latitude * Math.PI) / 180,
+      ))
   )
 }
 
 function metersToLat(meters: number) {
   return meters / 111000
 }
+
+function getEntityProperty(
+  entity: any,
+  name: string,
+) {
+  const properties = entity.properties
+
+  if (!properties) {
+    return undefined
+  }
+
+  if (
+    typeof properties.getValue ===
+    'function'
+  ) {
+    const values =
+      properties.getValue()
+
+    if (
+      values &&
+      typeof values === 'object'
+    ) {
+      return values[name]
+    }
+  }
+
+  if (
+    typeof properties.getProperty ===
+    'function'
+  ) {
+    const property =
+      properties.getProperty(name)
+
+    if (
+      property &&
+      typeof property.getValue ===
+        'function'
+    ) {
+      return property.getValue()
+    }
+
+    return property
+  }
+
+  return properties[name]
+}
+
+/*
+ * -------------------------------------------------------
+ * ANALYSIS BOX
+ * -------------------------------------------------------
+ */
 
 function addAnalysisBox(
   viewer: Viewer,
@@ -47,7 +108,8 @@ function addAnalysisBox(
         10,
       ),
 
-      material: color.withAlpha(0.18),
+      material:
+        color.withAlpha(0.22),
 
       heightReference:
         HeightReference.RELATIVE_TO_GROUND,
@@ -62,111 +124,142 @@ function addAnalysisBox(
 }
 
 /*
+ * -------------------------------------------------------
  * BUILDING DENSITY ANALYSIS
  *
- * Reads existing building entities from Cesium
- * and creates a density grid around Konoha.
+ * 250m x 250m grid.
+ *
+ * LOW    = 1–3 buildings
+ * MEDIUM = 4–7 buildings
+ * HIGH   = 8+ buildings
+ * -------------------------------------------------------
  */
+
 function createBuildingDensityAnalysis(
   viewer: Viewer,
 ) {
-  const buildings = viewer.entities.values.filter(
-    (entity) => {
-      const type =
-        entity.properties?.type?.getValue?.()
-
-      return type === 'building'
-    },
-  )
+  const buildings =
+    viewer.entities.values.filter(
+      (entity) =>
+        getEntityProperty(
+          entity,
+          'type',
+        ) === 'building',
+    )
 
   const cellSize = 250
   const gridSize = 7
-  const half =
-    ((gridSize - 1) * cellSize) / 2
 
-  for (let row = 0; row < gridSize; row += 1) {
+  const half =
+    ((gridSize - 1) *
+      cellSize) /
+    2
+
+  for (
+    let row = 0;
+    row < gridSize;
+    row += 1
+  ) {
     for (
       let column = 0;
       column < gridSize;
       column += 1
     ) {
-      const cellCenterLon =
+      const cellLon =
         CENTER_LON +
         metersToLon(
-          column * cellSize - half,
+          column * cellSize -
+            half,
           CENTER_LAT,
         )
 
-      const cellCenterLat =
+      const cellLat =
         CENTER_LAT +
         metersToLat(
-          row * cellSize - half,
+          row * cellSize -
+            half,
         )
 
       let count = 0
 
-      buildings.forEach((building) => {
-        if (!building.position) {
-          return
-        }
+      buildings.forEach(
+        (building) => {
+          if (!building.position) {
+            return
+          }
 
-        const position =
-          building.position.getValue?.(
-            viewer.clock.currentTime,
-          )
+          const position =
+            building.position.getValue(
+              viewer.clock
+                .currentTime,
+            )
 
-        if (!position) {
-          return
-        }
+          if (!position) {
+            return
+          }
 
-        const cartographic =
-          Cartographic.fromCartesian(position)
+          const cartographic =
+            Cartographic.fromCartesian(
+              position,
+            )
 
-        const lon =
-          (cartographic.longitude * 180) /
-          Math.PI
+          const lon =
+            (cartographic.longitude *
+              180) /
+            Math.PI
 
-        const lat =
-          (cartographic.latitude * 180) /
-          Math.PI
+          const lat =
+            (cartographic.latitude *
+              180) /
+            Math.PI
 
-        const dx =
-          (lon - cellCenterLon) *
-          111000 *
-          Math.cos(
-            (CENTER_LAT * Math.PI) / 180,
-          )
+          const dx =
+            (lon - cellLon) *
+            111000 *
+            Math.cos(
+              (CENTER_LAT *
+                Math.PI) /
+                180,
+            )
 
-        const dy =
-          (lat - cellCenterLat) * 111000
+          const dy =
+            (lat - cellLat) * 111000
 
-        const distance = Math.sqrt(
-          dx * dx + dy * dy,
-        )
+          const distance =
+            Math.sqrt(
+              dx * dx + dy * dy,
+            )
 
-        if (distance <= cellSize / 2) {
-          count += 1
-        }
-      })
+          if (
+            distance <=
+            cellSize / 2
+          ) {
+            count += 1
+          }
+        },
+      )
 
       if (count === 0) {
         continue
       }
 
       let color = Color.YELLOW
+      let level = 'LOW'
 
       if (count >= 8) {
         color = Color.RED
+        level = 'HIGH'
       } else if (count >= 4) {
         color = Color.ORANGE
+        level = 'MEDIUM'
       }
 
       addAnalysisBox(
         viewer,
-        `analysis-density-${row}-${column}`,
-        `Building Density: ${count} buildings`,
-        cellCenterLon,
-        cellCenterLat,
+        `analysis-building-density-${row}-${column}`,
+        `Building Density — ${level} — ${count} buildings`,
+        cellLon,
+        cellLat,
         cellSize,
         cellSize,
         color,
@@ -176,15 +269,20 @@ function createBuildingDensityAnalysis(
 }
 
 /*
+ * -------------------------------------------------------
  * RIVER BUFFER ANALYSIS
  *
- * Creates 100m and 250m visual buffer zones
- * along the main Konoha river corridor.
+ * 100m and 250m visual buffer zones.
+ * -------------------------------------------------------
  */
+
 function createRiverBufferAnalysis(
   viewer: Viewer,
 ) {
-  const riverCoordinates: [number, number][] = [
+  const riverCoordinates: [
+    number,
+    number,
+  ][] = [
     [140.205, 34.790],
     [140.207, 34.775],
     [140.209, 34.755],
@@ -196,24 +294,30 @@ function createRiverBufferAnalysis(
   ]
 
   riverCoordinates.forEach(
-    ([longitude, latitude], index) => {
+    ([lon, lat], index) => {
+      /*
+       * 250m buffer
+       */
       addAnalysisBox(
         viewer,
         `analysis-river-buffer-250-${index}`,
         'River 250m Buffer',
-        longitude,
-        latitude,
+        lon,
+        lat,
         500,
         500,
         Color.CYAN,
       )
 
+      /*
+       * 100m buffer
+       */
       addAnalysisBox(
         viewer,
         `analysis-river-buffer-100-${index}`,
         'River 100m Buffer',
-        longitude,
-        latitude,
+        lon,
+        lat,
         200,
         200,
         Color.BLUE,
@@ -223,49 +327,32 @@ function createRiverBufferAnalysis(
 }
 
 /*
- * MOUNTAIN / FOREST TRANSITION ANALYSIS
+ * -------------------------------------------------------
+ * MOUNTAIN / FOREST TRANSITION
+ * -------------------------------------------------------
  */
+
 function createMountainForestAnalysis(
   viewer: Viewer,
 ) {
-  const transitionCells = [
-    {
-      lon: 140.170,
-      lat: 34.755,
-      size: 500,
-    },
-    {
-      lon: 140.185,
-      lat: 34.755,
-      size: 500,
-    },
-    {
-      lon: 140.200,
-      lat: 34.755,
-      size: 500,
-    },
-    {
-      lon: 140.215,
-      lat: 34.755,
-      size: 500,
-    },
-    {
-      lon: 140.230,
-      lat: 34.755,
-      size: 500,
-    },
-  ]
+  const cells = [
+    [140.170, 34.755],
+    [140.185, 34.755],
+    [140.200, 34.755],
+    [140.215, 34.755],
+    [140.230, 34.755],
+  ] as const
 
-  transitionCells.forEach(
-    (cell, index) => {
+  cells.forEach(
+    ([lon, lat], index) => {
       addAnalysisBox(
         viewer,
-        `analysis-transition-${index}`,
-        'Mountain Forest Transition',
-        cell.lon,
-        cell.lat,
-        cell.size,
-        cell.size,
+        `analysis-mountain-forest-${index}`,
+        'Mountain / Forest Transition',
+        lon,
+        lat,
+        500,
+        500,
         Color.LIME,
       )
     },
@@ -273,17 +360,17 @@ function createMountainForestAnalysis(
 }
 
 /*
- * MAIN ANALYSIS LAYER
+ * -------------------------------------------------------
+ * KONOHA CORE ANALYSIS
+ * -------------------------------------------------------
  */
-export function createGISAnalysisLayer(
+
+function createCoreAnalysis(
   viewer: Viewer,
 ) {
-  createBuildingDensityAnalysis(viewer)
-
-  createRiverBufferAnalysis(viewer)
-
-  createMountainForestAnalysis(viewer)
-
+  /*
+   * Core village zone.
+   */
   addAnalysisBox(
     viewer,
     'analysis-konoha-core',
@@ -295,6 +382,9 @@ export function createGISAnalysisLayer(
     Color.YELLOW,
   )
 
+  /*
+   * Operational buffer.
+   */
   addAnalysisBox(
     viewer,
     'analysis-operational-buffer',
@@ -305,6 +395,45 @@ export function createGISAnalysisLayer(
     1200,
     Color.MAGENTA,
   )
+}
+
+
+/*
+ * -------------------------------------------------------
+ * CREATE ALL GIS ANALYSIS
+ * -------------------------------------------------------
+ */
+
+export function createGISAnalysisLayer(
+  viewer: Viewer,
+) {
+  /*
+   * 1. Building density
+   */
+  createBuildingDensityAnalysis(
+    viewer,
+  )
+
+  /*
+   * 2. River buffers
+   */
+  createRiverBufferAnalysis(
+    viewer,
+  )
+
+  /*
+   * 3. Mountain / forest
+   *    transition zones
+   */
+  createMountainForestAnalysis(
+    viewer,
+  )
+
+  /*
+   * 4. Konoha core
+   */
+  createCoreAnalysis(viewer)
+
 
   setGISAnalysisVisibility(
     viewer,
@@ -313,8 +442,11 @@ export function createGISAnalysisLayer(
 }
 
 /*
- * GLOBAL VISIBILITY
+ * -------------------------------------------------------
+ * GLOBAL GIS ANALYSIS VISIBILITY
+ * -------------------------------------------------------
  */
+
 export function setGISAnalysisVisibility(
   viewer: Viewer,
   visible: boolean,
@@ -322,17 +454,25 @@ export function setGISAnalysisVisibility(
   viewer.entities.values
     .filter((entity) =>
       entity.id.startsWith(
-        'analysis-',
+        ANALYSIS_PREFIX,
       ),
     )
     .forEach((entity) => {
       entity.show = visible
     })
+
+  /*
+   * Legend is also controlled
+   * by GIS Analysis visibility.
+   */
 }
 
 /*
+ * -------------------------------------------------------
  * CATEGORY VISIBILITY
+ * -------------------------------------------------------
  */
+
 export function setGISAnalysisCategoryVisibility(
   viewer: Viewer,
   category:
@@ -347,8 +487,15 @@ export function setGISAnalysisCategoryVisibility(
     .filter((entity) => {
       if (
         !entity.id.startsWith(
-          'analysis-',
+          ANALYSIS_PREFIX,
         )
+      ) {
+        return false
+      }
+
+      if (
+        entity.id ===
+        'analysis-legend'
       ) {
         return false
       }
@@ -357,15 +504,17 @@ export function setGISAnalysisCategoryVisibility(
         return true
       }
 
-      if (category === 'building') {
+      if (
+        category === 'building'
+      ) {
         return entity.id.includes(
-          'density',
+          'building-density',
         )
       }
 
       if (category === 'forest') {
         return entity.id.includes(
-          'forest',
+          'mountain-forest',
         )
       }
 
@@ -375,9 +524,11 @@ export function setGISAnalysisCategoryVisibility(
         )
       }
 
-      if (category === 'mountain') {
+      if (
+        category === 'mountain'
+      ) {
         return entity.id.includes(
-          'transition',
+          'mountain-forest',
         )
       }
 
@@ -387,3 +538,4 @@ export function setGISAnalysisCategoryVisibility(
       entity.show = visible
     })
 }
+

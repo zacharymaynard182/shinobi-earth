@@ -1,0 +1,257 @@
+
+import type { ReactNode } from 'react'
+
+interface AnalysisMetricProps {
+  label: string
+  value: string | number
+  detail?: string
+}
+
+interface GISAnalysisPanelProps {
+  visible: boolean
+}
+
+function AnalysisMetric({
+  label,
+  value,
+  detail,
+}: AnalysisMetricProps) {
+  return (
+    <div className="gis-analysis-metric">
+      <div className="gis-analysis-metric-label">
+        {label}
+      </div>
+
+      <div className="gis-analysis-metric-value">
+        {value}
+      </div>
+
+      {detail && (
+        <div className="gis-analysis-metric-detail">
+          {detail}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <section className="gis-analysis-section">
+      <div className="gis-analysis-section-title">
+        {title}
+      </div>
+
+      {children}
+    </section>
+  )
+}
+
+export default function GISAnalysisPanel({
+  visible,
+}: GISAnalysisPanelProps) {
+  if (!visible) {
+    return null
+  }
+
+  /*
+   * Current SHINOBI EARTH analysis configuration.
+   *
+   * Building entities:
+   *   fixed landmarks + procedural buildings
+   *
+   * Current procedural counts:
+   *   residential: 34
+   *   market:      18
+   *   training:    10
+   *
+   * Fixed buildings:
+   *   14
+   *
+   * Total:
+   *   76
+   *
+   * The GISAnalysisLayer performs the spatial
+   * density classification on the Cesium side.
+   */
+
+  const totalBuildings = 76
+
+  const densityCells = 49
+
+  const riverBuffer100 = 8
+  const riverBuffer250 = 8
+
+  const mountainForestCells = 5
+
+  return (
+    <aside className="gis-analysis-panel">
+      <div className="gis-analysis-header">
+        <div>
+          <span className="gis-analysis-kicker">
+            SPATIAL INTELLIGENCE
+          </span>
+
+          <h2>GIS ANALYSIS</h2>
+        </div>
+
+        <span className="gis-analysis-status">
+          LIVE
+        </span>
+      </div>
+
+      <div className="gis-analysis-subtitle">
+        Konoha Digital Twin
+      </div>
+
+      <Section title="BUILDING ANALYSIS">
+        <div className="gis-analysis-grid">
+          <AnalysisMetric
+            label="Buildings"
+            value={totalBuildings}
+            detail="mapped structures"
+          />
+
+          <AnalysisMetric
+            label="Grid"
+            value={densityCells}
+            detail="250m cells"
+          />
+        </div>
+
+        <div className="gis-analysis-density">
+          <div className="density-row">
+            <span>
+              <i className="density-dot high" />
+              HIGH
+            </span>
+
+            <strong>8+</strong>
+          </div>
+
+          <div className="density-row">
+            <span>
+              <i className="density-dot medium" />
+              MEDIUM
+            </span>
+
+            <strong>4–7</strong>
+          </div>
+
+          <div className="density-row">
+            <span>
+              <i className="density-dot low" />
+              LOW
+            </span>
+
+            <strong>1–3</strong>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="RIVER ANALYSIS">
+        <div className="gis-analysis-grid">
+          <AnalysisMetric
+            label="100m Buffer"
+            value={`${riverBuffer100}`}
+            detail="analysis segments"
+          />
+
+          <AnalysisMetric
+            label="250m Buffer"
+            value={`${riverBuffer250}`}
+            detail="analysis segments"
+          />
+        </div>
+
+        <div className="analysis-bar-row">
+          <span>100 m</span>
+
+          <div className="analysis-bar">
+            <div
+              className="analysis-bar-fill river-100"
+              style={{
+                width: '42%',
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="analysis-bar-row">
+          <span>250 m</span>
+
+          <div className="analysis-bar">
+            <div
+              className="analysis-bar-fill river-250"
+              style={{
+                width: '68%',
+              }}
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="TERRAIN / FOREST">
+        <AnalysisMetric
+          label="Mountain / Forest Transition"
+          value={mountainForestCells}
+          detail="500m analysis cells"
+        />
+
+        <div className="transition-status">
+          <span className="transition-indicator" />
+
+          <div>
+            <strong>TRANSITION ZONE</strong>
+
+            <small>
+              Mountain → foothill → forest
+            </small>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="OPERATIONAL ZONES">
+        <div className="zone-list">
+          <div className="zone-item">
+            <span className="zone-marker core" />
+
+            <div>
+              <strong>KONOHA CORE</strong>
+              <small>
+                900m × 900m
+              </small>
+            </div>
+          </div>
+
+          <div className="zone-item">
+            <span className="zone-marker operational" />
+
+            <div>
+              <strong>
+                OPERATIONAL BUFFER
+              </strong>
+
+              <small>
+                1.4km × 1.2km
+              </small>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <div className="gis-analysis-footer">
+        <span className="analysis-pulse" />
+
+        Spatial analysis active
+      </div>
+    </aside>
+  )
+}
+
