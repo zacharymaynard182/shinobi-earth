@@ -12,6 +12,40 @@ const CENTER_LAT = 34.7
 
 const ANALYSIS_PREFIX = 'analysis-'
 
+export interface GISAnalysisMetrics {
+  totalBuildings: number
+  densityCells: number
+  highDensityCells: number
+  mediumDensityCells: number
+  lowDensityCells: number
+  riverBuffer100: number
+  riverBuffer250: number
+  mountainForestCells: number
+}
+
+let currentMetrics: GISAnalysisMetrics = {
+  totalBuildings: 0,
+  densityCells: 0,
+  highDensityCells: 0,
+  mediumDensityCells: 0,
+  lowDensityCells: 0,
+  riverBuffer100: 0,
+  riverBuffer250: 0,
+  mountainForestCells: 0,
+}
+
+export function getGISAnalysisMetrics(): GISAnalysisMetrics {
+  return {
+    ...currentMetrics,
+  }
+}
+
+/*
+ * -------------------------------------------------------
+ * COORDINATE HELPERS
+ * -------------------------------------------------------
+ */
+
 function metersToLon(
   meters: number,
   latitude: number,
@@ -25,15 +59,28 @@ function metersToLon(
   )
 }
 
-function metersToLat(meters: number) {
+function metersToLat(
+  meters: number,
+) {
   return meters / 111000
 }
+
+/*
+ * -------------------------------------------------------
+ * ENTITY PROPERTY HELPER
+ * -------------------------------------------------------
+ *
+ * Supports both:
+ * - Cesium Property objects
+ * - plain object properties
+ */
 
 function getEntityProperty(
   entity: any,
   name: string,
 ) {
-  const properties = entity.properties
+  const properties =
+    entity.properties
 
   if (!properties) {
     return undefined
@@ -126,18 +173,28 @@ function addAnalysisBox(
 /*
  * -------------------------------------------------------
  * BUILDING DENSITY ANALYSIS
+ * -------------------------------------------------------
  *
- * 250m x 250m grid.
+ * 250m × 250m analysis grid.
  *
- * LOW    = 1–3 buildings
- * MEDIUM = 4–7 buildings
- * HIGH   = 8+ buildings
+ * LOW:
+ *   1–3 buildings
+ *
+ * MEDIUM:
+ *   4–7 buildings
+ *
+ * HIGH:
+ *   8+ buildings
  * -------------------------------------------------------
  */
 
 function createBuildingDensityAnalysis(
   viewer: Viewer,
 ) {
+  /*
+   * Read actual building entities
+   * already created in the Cesium viewer.
+   */
   const buildings =
     viewer.entities.values.filter(
       (entity) =>
@@ -148,12 +205,21 @@ function createBuildingDensityAnalysis(
     )
 
   const cellSize = 250
+
   const gridSize = 7
 
   const half =
     ((gridSize - 1) *
       cellSize) /
     2
+
+  let densityCells = 0
+
+  let highDensityCells = 0
+
+  let mediumDensityCells = 0
+
+  let lowDensityCells = 0
 
   for (
     let row = 0;
@@ -184,7 +250,9 @@ function createBuildingDensityAnalysis(
 
       buildings.forEach(
         (building) => {
-          if (!building.position) {
+          if (
+            !building.position
+          ) {
             return
           }
 
@@ -203,18 +271,19 @@ function createBuildingDensityAnalysis(
               position,
             )
 
-          const lon =
+          const longitude =
             (cartographic.longitude *
               180) /
             Math.PI
 
-          const lat =
+          const latitude =
             (cartographic.latitude *
               180) /
             Math.PI
 
           const dx =
-            (lon - cellLon) *
+            (longitude -
+              cellLon) *
             111000 *
             Math.cos(
               (CENTER_LAT *
@@ -223,11 +292,14 @@ function createBuildingDensityAnalysis(
             )
 
           const dy =
-            (lat - cellLat) * 111000
+            (latitude -
+              cellLat) *
+            111000
 
           const distance =
             Math.sqrt(
-              dx * dx + dy * dy,
+              dx * dx +
+                dy * dy,
             )
 
           if (
@@ -239,19 +311,33 @@ function createBuildingDensityAnalysis(
         },
       )
 
+      /*
+       * Empty cells are not rendered.
+       */
       if (count === 0) {
         continue
       }
 
+      densityCells += 1
+
       let color = Color.YELLOW
+
       let level = 'LOW'
 
       if (count >= 8) {
         color = Color.RED
+
         level = 'HIGH'
+
+        highDensityCells += 1
       } else if (count >= 4) {
         color = Color.ORANGE
+
         level = 'MEDIUM'
+
+        mediumDensityCells += 1
+      } else {
+        lowDensityCells += 1
       }
 
       addAnalysisBox(
@@ -266,13 +352,48 @@ function createBuildingDensityAnalysis(
       )
     }
   }
+
+  /*
+   * Store real analysis metrics.
+   */
+  currentMetrics = {
+    ...currentMetrics,
+
+    totalBuildings:
+      buildings.length,
+
+    densityCells,
+
+    highDensityCells,
+
+    mediumDensityCells,
+
+    lowDensityCells,
+  }
+
+  /*
+   * Notify the React dashboard.
+   */
+  window.dispatchEvent(
+    new CustomEvent(
+      'shinobi-earth:gis-analysis-updated',
+    ),
+  )
 }
 
 /*
  * -------------------------------------------------------
  * RIVER BUFFER ANALYSIS
+ * -------------------------------------------------------
  *
- * 100m and 250m visual buffer zones.
+ * These are visual analysis segments
+ * following the current river corridor.
+ *
+ * 100m buffer:
+ *   200m × 200m cells
+ *
+ * 250m buffer:
+ *   500m × 500m cells
  * -------------------------------------------------------
  */
 
@@ -296,7 +417,7 @@ function createRiverBufferAnalysis(
   riverCoordinates.forEach(
     ([lon, lat], index) => {
       /*
-       * 250m buffer
+       * 250m buffer.
        */
       addAnalysisBox(
         viewer,
@@ -310,7 +431,7 @@ function createRiverBufferAnalysis(
       )
 
       /*
-       * 100m buffer
+       * 100m buffer.
        */
       addAnalysisBox(
         viewer,
@@ -324,6 +445,16 @@ function createRiverBufferAnalysis(
       )
     },
   )
+
+  currentMetrics = {
+    ...currentMetrics,
+
+    riverBuffer100:
+      riverCoordinates.length,
+
+    riverBuffer250:
+      riverCoordinates.length,
+  }
 }
 
 /*
@@ -357,6 +488,13 @@ function createMountainForestAnalysis(
       )
     },
   )
+
+  currentMetrics = {
+    ...currentMetrics,
+
+    mountainForestCells:
+      cells.length,
+  }
 }
 
 /*
@@ -369,7 +507,7 @@ function createCoreAnalysis(
   viewer: Viewer,
 ) {
   /*
-   * Core village zone.
+   * Konoha core.
    */
   addAnalysisBox(
     viewer,
@@ -397,7 +535,6 @@ function createCoreAnalysis(
   )
 }
 
-
 /*
  * -------------------------------------------------------
  * CREATE ALL GIS ANALYSIS
@@ -408,33 +545,41 @@ export function createGISAnalysisLayer(
   viewer: Viewer,
 ) {
   /*
-   * 1. Building density
-   */
-  createBuildingDensityAnalysis(
-    viewer,
-  )
-
-  /*
-   * 2. River buffers
+   * River analysis.
    */
   createRiverBufferAnalysis(
     viewer,
   )
 
   /*
-   * 3. Mountain / forest
-   *    transition zones
+   * Mountain / forest transition.
    */
   createMountainForestAnalysis(
     viewer,
   )
 
   /*
-   * 4. Konoha core
+   * Konoha operational zones.
    */
   createCoreAnalysis(viewer)
 
+  /*
+   * Buildings are created later by
+   * CesiumViewer.
+   *
+   * Wait until the current initialization
+   * stack has completed, then inspect the
+   * actual building entities.
+   */
+  setTimeout(() => {
+    createBuildingDensityAnalysis(
+      viewer,
+    )
+  }, 0)
 
+  /*
+   * Analysis layer starts hidden.
+   */
   setGISAnalysisVisibility(
     viewer,
     false,
@@ -460,11 +605,6 @@ export function setGISAnalysisVisibility(
     .forEach((entity) => {
       entity.show = visible
     })
-
-  /*
-   * Legend is also controlled
-   * by GIS Analysis visibility.
-   */
 }
 
 /*
@@ -489,13 +629,6 @@ export function setGISAnalysisCategoryVisibility(
         !entity.id.startsWith(
           ANALYSIS_PREFIX,
         )
-      ) {
-        return false
-      }
-
-      if (
-        entity.id ===
-        'analysis-legend'
       ) {
         return false
       }
@@ -538,4 +671,3 @@ export function setGISAnalysisCategoryVisibility(
       entity.show = visible
     })
 }
-

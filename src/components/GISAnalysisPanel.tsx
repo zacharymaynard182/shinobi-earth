@@ -1,5 +1,13 @@
+import {
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
 
-import type { ReactNode } from 'react'
+import {
+  getGISAnalysisMetrics,
+  type GISAnalysisMetrics,
+} from './GISAnalysisLayer'
 
 interface AnalysisMetricProps {
   label: string
@@ -56,39 +64,47 @@ function Section({
 export default function GISAnalysisPanel({
   visible,
 }: GISAnalysisPanelProps) {
+  const [metrics, setMetrics] =
+    useState<GISAnalysisMetrics>(
+      getGISAnalysisMetrics(),
+    )
+
+  useEffect(() => {
+    const updateMetrics = () => {
+      setMetrics(
+        getGISAnalysisMetrics(),
+      )
+    }
+
+    updateMetrics()
+
+    window.addEventListener(
+      'shinobi-earth:gis-analysis-updated',
+      updateMetrics,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'shinobi-earth:gis-analysis-updated',
+        updateMetrics,
+      )
+    }
+  }, [])
+
   if (!visible) {
     return null
   }
 
-  /*
-   * Current SHINOBI EARTH analysis configuration.
-   *
-   * Building entities:
-   *   fixed landmarks + procedural buildings
-   *
-   * Current procedural counts:
-   *   residential: 34
-   *   market:      18
-   *   training:    10
-   *
-   * Fixed buildings:
-   *   14
-   *
-   * Total:
-   *   76
-   *
-   * The GISAnalysisLayer performs the spatial
-   * density classification on the Cesium side.
-   */
-
-  const totalBuildings = 76
-
-  const densityCells = 49
-
-  const riverBuffer100 = 8
-  const riverBuffer250 = 8
-
-  const mountainForestCells = 5
+  const {
+    totalBuildings,
+    densityCells,
+    highDensityCells,
+    mediumDensityCells,
+    lowDensityCells,
+    riverBuffer100,
+    riverBuffer250,
+    mountainForestCells,
+  } = metrics
 
   return (
     <aside className="gis-analysis-panel">
@@ -121,7 +137,7 @@ export default function GISAnalysisPanel({
           <AnalysisMetric
             label="Grid"
             value={densityCells}
-            detail="250m cells"
+            detail="active 250m cells"
           />
         </div>
 
@@ -132,7 +148,9 @@ export default function GISAnalysisPanel({
               HIGH
             </span>
 
-            <strong>8+</strong>
+            <strong>
+              {highDensityCells}
+            </strong>
           </div>
 
           <div className="density-row">
@@ -141,7 +159,9 @@ export default function GISAnalysisPanel({
               MEDIUM
             </span>
 
-            <strong>4–7</strong>
+            <strong>
+              {mediumDensityCells}
+            </strong>
           </div>
 
           <div className="density-row">
@@ -150,7 +170,9 @@ export default function GISAnalysisPanel({
               LOW
             </span>
 
-            <strong>1–3</strong>
+            <strong>
+              {lowDensityCells}
+            </strong>
           </div>
         </div>
       </Section>
@@ -159,13 +181,13 @@ export default function GISAnalysisPanel({
         <div className="gis-analysis-grid">
           <AnalysisMetric
             label="100m Buffer"
-            value={`${riverBuffer100}`}
+            value={riverBuffer100}
             detail="analysis segments"
           />
 
           <AnalysisMetric
             label="250m Buffer"
-            value={`${riverBuffer250}`}
+            value={riverBuffer250}
             detail="analysis segments"
           />
         </div>
@@ -177,7 +199,10 @@ export default function GISAnalysisPanel({
             <div
               className="analysis-bar-fill river-100"
               style={{
-                width: '42%',
+                width: `${Math.min(
+                  riverBuffer100 * 10,
+                  100,
+                )}%`,
               }}
             />
           </div>
@@ -190,7 +215,10 @@ export default function GISAnalysisPanel({
             <div
               className="analysis-bar-fill river-250"
               style={{
-                width: '68%',
+                width: `${Math.min(
+                  riverBuffer250 * 10,
+                  100,
+                )}%`,
               }}
             />
           </div>
@@ -208,7 +236,9 @@ export default function GISAnalysisPanel({
           <span className="transition-indicator" />
 
           <div>
-            <strong>TRANSITION ZONE</strong>
+            <strong>
+              TRANSITION ZONE
+            </strong>
 
             <small>
               Mountain → foothill → forest
@@ -223,7 +253,10 @@ export default function GISAnalysisPanel({
             <span className="zone-marker core" />
 
             <div>
-              <strong>KONOHA CORE</strong>
+              <strong>
+                KONOHA CORE
+              </strong>
+
               <small>
                 900m × 900m
               </small>
@@ -254,4 +287,3 @@ export default function GISAnalysisPanel({
     </aside>
   )
 }
-
