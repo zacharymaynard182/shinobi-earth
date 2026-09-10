@@ -1,4 +1,3 @@
-
 import {
   Cartesian3,
   Cartographic,
@@ -12,6 +11,39 @@ const CENTER_LAT = 34.7
 
 const ANALYSIS_PREFIX = 'analysis-'
 
+const MAIN_RIVER: [number, number][] = [
+  [140.205, 34.790],
+  [140.207, 34.784],
+  [140.209, 34.778],
+  [140.211, 34.772],
+  [140.212, 34.766],
+  [140.213, 34.760],
+  [140.212, 34.754],
+  [140.211, 34.748],
+  [140.209, 34.742],
+  [140.208, 34.736],
+  [140.207, 34.730],
+  [140.206, 34.724],
+  [140.205, 34.718],
+  [140.205, 34.713],
+  [140.206, 34.709],
+  [140.207, 34.706],
+  [140.210, 34.702],
+  [140.212, 34.698],
+  [140.214, 34.694],
+  [140.216, 34.690],
+  [140.219, 34.686],
+  [140.222, 34.682],
+  [140.225, 34.678],
+  [140.228, 34.674],
+  [140.231, 34.670],
+  [140.234, 34.666],
+  [140.238, 34.662],
+  [140.242, 34.658],
+  [140.246, 34.654],
+  [140.250, 34.650],
+]
+
 export interface GISAnalysisMetrics {
   totalBuildings: number
   densityCells: number
@@ -20,6 +52,8 @@ export interface GISAnalysisMetrics {
   lowDensityCells: number
   riverBuffer100: number
   riverBuffer250: number
+  riverOutside250: number
+  closestBuildingDistance: number
   mountainForestCells: number
 }
 
@@ -31,6 +65,8 @@ let currentMetrics: GISAnalysisMetrics = {
   lowDensityCells: 0,
   riverBuffer100: 0,
   riverBuffer250: 0,
+  riverOutside250: 0,
+  closestBuildingDistance: 0,
   mountainForestCells: 0,
 }
 
@@ -41,9 +77,9 @@ export function getGISAnalysisMetrics(): GISAnalysisMetrics {
 }
 
 /*
- * -------------------------------------------------------
+ * =======================================================
  * COORDINATE HELPERS
- * -------------------------------------------------------
+ * =======================================================
  */
 
 function metersToLon(
@@ -65,14 +101,152 @@ function metersToLat(
   return meters / 111000
 }
 
+function lonLatToMeters(
+  longitude: number,
+  latitude: number,
+) {
+  return {
+    x:
+      longitude *
+      111000 *
+      Math.cos(
+        (latitude * Math.PI) / 180,
+      ),
+
+    y: latitude * 111000,
+  }
+}
+
+function distanceMeters(
+  lon1: number,
+  lat1: number,
+  lon2: number,
+  lat2: number,
+) {
+  const a = lonLatToMeters(
+    lon1,
+    lat1,
+  )
+
+  const b = lonLatToMeters(
+    lon2,
+    lat2,
+  )
+
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+
+  return Math.sqrt(
+    dx * dx + dy * dy,
+  )
+}
+
 /*
- * -------------------------------------------------------
+ * =======================================================
+ * POINT TO SEGMENT DISTANCE
+ * =======================================================
+ */
+
+function pointToSegmentDistance(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+) {
+  const dx = bx - ax
+  const dy = by - ay
+
+  if (dx === 0 && dy === 0) {
+    return Math.sqrt(
+      (px - ax) ** 2 +
+        (py - ay) ** 2,
+    )
+  }
+
+  const t =
+    ((px - ax) * dx +
+      (py - ay) * dy) /
+    (dx * dx + dy * dy)
+
+  const clampedT = Math.max(
+    0,
+    Math.min(1, t),
+  )
+
+  const closestX =
+    ax + clampedT * dx
+
+  const closestY =
+    ay + clampedT * dy
+
+  return Math.sqrt(
+    (px - closestX) ** 2 +
+      (py - closestY) ** 2,
+  )
+}
+
+/*
+ * =======================================================
+ * BUILDING → RIVER DISTANCE
+ * =======================================================
+ */
+
+function getDistanceToMainRiver(
+  longitude: number,
+  latitude: number,
+) {
+  const point =
+    lonLatToMeters(
+      longitude,
+      latitude,
+    )
+
+  let minimumDistance =
+    Number.POSITIVE_INFINITY
+
+  for (
+    let i = 0;
+    i < MAIN_RIVER.length - 1;
+    i += 1
+  ) {
+    const start =
+      lonLatToMeters(
+        MAIN_RIVER[i][0],
+        MAIN_RIVER[i][1],
+      )
+
+    const end =
+      lonLatToMeters(
+        MAIN_RIVER[i + 1][0],
+        MAIN_RIVER[i + 1][1],
+      )
+
+    const distance =
+      pointToSegmentDistance(
+        point.x,
+        point.y,
+        start.x,
+        start.y,
+        end.x,
+        end.y,
+      )
+
+    minimumDistance =
+      Math.min(
+        minimumDistance,
+        distance,
+      )
+  }
+
+  return minimumDistance
+}
+
+/*
+ * =======================================================
  * ENTITY PROPERTY HELPER
- * -------------------------------------------------------
- *
- * Supports both:
- * - Cesium Property objects
- * - plain object properties
+ * =======================================================
  */
 
 function getEntityProperty(
@@ -123,9 +297,9 @@ function getEntityProperty(
 }
 
 /*
- * -------------------------------------------------------
+ * =======================================================
  * ANALYSIS BOX
- * -------------------------------------------------------
+ * =======================================================
  */
 
 function addAnalysisBox(
@@ -142,18 +316,20 @@ function addAnalysisBox(
     id,
     name,
 
-    position: Cartesian3.fromDegrees(
-      longitude,
-      latitude,
-      5,
-    ),
+    position:
+      Cartesian3.fromDegrees(
+        longitude,
+        latitude,
+        5,
+      ),
 
     box: {
-      dimensions: new Cartesian3(
-        width,
-        depth,
-        10,
-      ),
+      dimensions:
+        new Cartesian3(
+          width,
+          depth,
+          10,
+        ),
 
       material:
         color.withAlpha(0.22),
@@ -171,30 +347,14 @@ function addAnalysisBox(
 }
 
 /*
- * -------------------------------------------------------
- * BUILDING DENSITY ANALYSIS
- * -------------------------------------------------------
- *
- * 250m × 250m analysis grid.
- *
- * LOW:
- *   1–3 buildings
- *
- * MEDIUM:
- *   4–7 buildings
- *
- * HIGH:
- *   8+ buildings
- * -------------------------------------------------------
+ * =======================================================
+ * BUILDING DENSITY
+ * =======================================================
  */
 
 function createBuildingDensityAnalysis(
   viewer: Viewer,
 ) {
-  /*
-   * Read actual building entities
-   * already created in the Cesium viewer.
-   */
   const buildings =
     viewer.entities.values.filter(
       (entity) =>
@@ -205,7 +365,6 @@ function createBuildingDensityAnalysis(
     )
 
   const cellSize = 250
-
   const gridSize = 7
 
   const half =
@@ -214,11 +373,8 @@ function createBuildingDensityAnalysis(
     2
 
   let densityCells = 0
-
   let highDensityCells = 0
-
   let mediumDensityCells = 0
-
   let lowDensityCells = 0
 
   for (
@@ -250,9 +406,7 @@ function createBuildingDensityAnalysis(
 
       buildings.forEach(
         (building) => {
-          if (
-            !building.position
-          ) {
+          if (!building.position) {
             return
           }
 
@@ -281,25 +435,12 @@ function createBuildingDensityAnalysis(
               180) /
             Math.PI
 
-          const dx =
-            (longitude -
-              cellLon) *
-            111000 *
-            Math.cos(
-              (CENTER_LAT *
-                Math.PI) /
-                180,
-            )
-
-          const dy =
-            (latitude -
-              cellLat) *
-            111000
-
           const distance =
-            Math.sqrt(
-              dx * dx +
-                dy * dy,
+            distanceMeters(
+              longitude,
+              latitude,
+              cellLon,
+              cellLat,
             )
 
           if (
@@ -311,9 +452,6 @@ function createBuildingDensityAnalysis(
         },
       )
 
-      /*
-       * Empty cells are not rendered.
-       */
       if (count === 0) {
         continue
       }
@@ -322,23 +460,22 @@ function createBuildingDensityAnalysis(
 
       let color = Color.YELLOW
 
-      let level = 'LOW'
-
       if (count >= 8) {
         color = Color.RED
-
-        level = 'HIGH'
-
         highDensityCells += 1
       } else if (count >= 4) {
         color = Color.ORANGE
-
-        level = 'MEDIUM'
-
         mediumDensityCells += 1
       } else {
         lowDensityCells += 1
       }
+
+      const level =
+        count >= 8
+          ? 'HIGH'
+          : count >= 4
+            ? 'MEDIUM'
+            : 'LOW'
 
       addAnalysisBox(
         viewer,
@@ -353,9 +490,6 @@ function createBuildingDensityAnalysis(
     }
   }
 
-  /*
-   * Store real analysis metrics.
-   */
   currentMetrics = {
     ...currentMetrics,
 
@@ -370,79 +504,93 @@ function createBuildingDensityAnalysis(
 
     lowDensityCells,
   }
-
-  /*
-   * Notify the React dashboard.
-   */
-  window.dispatchEvent(
-    new CustomEvent(
-      'shinobi-earth:gis-analysis-updated',
-    ),
-  )
 }
 
 /*
- * -------------------------------------------------------
- * RIVER BUFFER ANALYSIS
- * -------------------------------------------------------
+ * =======================================================
+ * RIVER PROXIMITY ANALYSIS
  *
- * These are visual analysis segments
- * following the current river corridor.
+ * Actual building → river centerline distance.
  *
- * 100m buffer:
- *   200m × 200m cells
+ * 0–100m:
+ *   HIGH PROXIMITY
  *
- * 250m buffer:
- *   500m × 500m cells
- * -------------------------------------------------------
+ * 100–250m:
+ *   MEDIUM PROXIMITY
+ *
+ * >250m:
+ *   OUTSIDE BUFFER
+ * =======================================================
  */
 
-function createRiverBufferAnalysis(
+function createRiverProximityAnalysis(
   viewer: Viewer,
 ) {
-  const riverCoordinates: [
-    number,
-    number,
-  ][] = [
-    [140.205, 34.790],
-    [140.207, 34.775],
-    [140.209, 34.755],
-    [140.211, 34.735],
-    [140.213, 34.715],
-    [140.215, 34.695],
-    [140.218, 34.675],
-    [140.220, 34.650],
-  ]
+  const buildings =
+    viewer.entities.values.filter(
+      (entity) =>
+        getEntityProperty(
+          entity,
+          'type',
+        ) === 'building',
+    )
 
-  riverCoordinates.forEach(
-    ([lon, lat], index) => {
-      /*
-       * 250m buffer.
-       */
-      addAnalysisBox(
-        viewer,
-        `analysis-river-buffer-250-${index}`,
-        'River 250m Buffer',
-        lon,
-        lat,
-        500,
-        500,
-        Color.CYAN,
-      )
+  let within100 = 0
+  let within250 = 0
+  let outside250 = 0
 
-      /*
-       * 100m buffer.
-       */
-      addAnalysisBox(
-        viewer,
-        `analysis-river-buffer-100-${index}`,
-        'River 100m Buffer',
-        lon,
-        lat,
-        200,
-        200,
-        Color.BLUE,
-      )
+  let closestDistance =
+    Number.POSITIVE_INFINITY
+
+  buildings.forEach(
+    (building) => {
+      if (!building.position) {
+        return
+      }
+
+      const position =
+        building.position.getValue(
+          viewer.clock.currentTime,
+        )
+
+      if (!position) {
+        return
+      }
+
+      const cartographic =
+        Cartographic.fromCartesian(
+          position,
+        )
+
+      const longitude =
+        (cartographic.longitude *
+          180) /
+        Math.PI
+
+      const latitude =
+        (cartographic.latitude *
+          180) /
+        Math.PI
+
+      const distance =
+        getDistanceToMainRiver(
+          longitude,
+          latitude,
+        )
+
+      closestDistance =
+        Math.min(
+          closestDistance,
+          distance,
+        )
+
+      if (distance <= 100) {
+        within100 += 1
+      } else if (distance <= 250) {
+        within250 += 1
+      } else {
+        outside250 += 1
+      }
     },
   )
 
@@ -450,17 +598,59 @@ function createRiverBufferAnalysis(
     ...currentMetrics,
 
     riverBuffer100:
-      riverCoordinates.length,
+      within100,
 
     riverBuffer250:
-      riverCoordinates.length,
+      within250,
+
+    riverOutside250:
+      outside250,
+
+    closestBuildingDistance:
+      Number.isFinite(
+        closestDistance,
+      )
+        ? Math.round(
+            closestDistance,
+          )
+        : 0,
   }
+
+  /*
+   * Visual river corridor.
+   */
+
+  MAIN_RIVER.forEach(
+    ([longitude, latitude], index) => {
+      addAnalysisBox(
+        viewer,
+        `analysis-river-buffer-250-${index}`,
+        'River 250m Analysis Zone',
+        longitude,
+        latitude,
+        500,
+        500,
+        Color.CYAN,
+      )
+
+      addAnalysisBox(
+        viewer,
+        `analysis-river-buffer-100-${index}`,
+        'River 100m Analysis Zone',
+        longitude,
+        latitude,
+        200,
+        200,
+        Color.BLUE,
+      )
+    },
+  )
 }
 
 /*
- * -------------------------------------------------------
+ * =======================================================
  * MOUNTAIN / FOREST TRANSITION
- * -------------------------------------------------------
+ * =======================================================
  */
 
 function createMountainForestAnalysis(
@@ -498,17 +688,14 @@ function createMountainForestAnalysis(
 }
 
 /*
- * -------------------------------------------------------
- * KONOHA CORE ANALYSIS
- * -------------------------------------------------------
+ * =======================================================
+ * KONOHA CORE
+ * =======================================================
  */
 
 function createCoreAnalysis(
   viewer: Viewer,
 ) {
-  /*
-   * Konoha core.
-   */
   addAnalysisBox(
     viewer,
     'analysis-konoha-core',
@@ -520,9 +707,6 @@ function createCoreAnalysis(
     Color.YELLOW,
   )
 
-  /*
-   * Operational buffer.
-   */
   addAnalysisBox(
     viewer,
     'analysis-operational-buffer',
@@ -536,50 +720,44 @@ function createCoreAnalysis(
 }
 
 /*
- * -------------------------------------------------------
- * CREATE ALL GIS ANALYSIS
- * -------------------------------------------------------
+ * =======================================================
+ * CREATE ALL ANALYSIS
+ * =======================================================
  */
 
 export function createGISAnalysisLayer(
   viewer: Viewer,
 ) {
-  /*
-   * River analysis.
-   */
-  createRiverBufferAnalysis(
+  createRiverProximityAnalysis(
     viewer,
   )
 
-  /*
-   * Mountain / forest transition.
-   */
   createMountainForestAnalysis(
     viewer,
   )
 
-  /*
-   * Konoha operational zones.
-   */
   createCoreAnalysis(viewer)
 
   /*
-   * Buildings are created later by
-   * CesiumViewer.
-   *
-   * Wait until the current initialization
-   * stack has completed, then inspect the
-   * actual building entities.
+   * Buildings are created after
+   * GIS layer initialization.
    */
   setTimeout(() => {
     createBuildingDensityAnalysis(
       viewer,
     )
+
+    createRiverProximityAnalysis(
+      viewer,
+    )
+
+    window.dispatchEvent(
+      new CustomEvent(
+        'shinobi-earth:gis-analysis-updated',
+      ),
+    )
   }, 0)
 
-  /*
-   * Analysis layer starts hidden.
-   */
   setGISAnalysisVisibility(
     viewer,
     false,
@@ -587,9 +765,9 @@ export function createGISAnalysisLayer(
 }
 
 /*
- * -------------------------------------------------------
- * GLOBAL GIS ANALYSIS VISIBILITY
- * -------------------------------------------------------
+ * =======================================================
+ * VISIBILITY
+ * =======================================================
  */
 
 export function setGISAnalysisVisibility(
@@ -608,9 +786,9 @@ export function setGISAnalysisVisibility(
 }
 
 /*
- * -------------------------------------------------------
+ * =======================================================
  * CATEGORY VISIBILITY
- * -------------------------------------------------------
+ * =======================================================
  */
 
 export function setGISAnalysisCategoryVisibility(

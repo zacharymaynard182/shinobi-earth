@@ -96,15 +96,17 @@ export default function GISAnalysisPanel({
   }
 
   const {
-    totalBuildings,
-    densityCells,
-    highDensityCells,
-    mediumDensityCells,
-    lowDensityCells,
-    riverBuffer100,
-    riverBuffer250,
-    mountainForestCells,
-  } = metrics
+        totalBuildings,
+        densityCells,
+        highDensityCells,
+        mediumDensityCells,
+        lowDensityCells,
+        riverBuffer100,
+        riverBuffer250,
+        riverOutside250,
+        closestBuildingDistance,
+        mountainForestCells,
+    } = metrics
 
   return (
     <aside className="gis-analysis-panel">
@@ -223,6 +225,32 @@ export default function GISAnalysisPanel({
             />
           </div>
         </div>
+
+        <div className="analysis-section">
+            <div className="analysis-section-title">
+                RIVER PROXIMITY
+            </div>
+
+            <div className="analysis-metric">
+                <span>0–100m</span>
+                <strong>{riverBuffer100}</strong>
+            </div>
+
+            <div className="analysis-metric">
+                <span>100–250m</span>
+                <strong>{riverBuffer250}</strong>
+            </div>
+
+            <div className="analysis-metric">
+                <span>Outside 250m</span>
+                <strong>{riverOutside250}</strong>
+            </div>
+
+            <div className="analysis-metric">
+                <span>Closest Building</span>
+                <strong>{closestBuildingDistance}m</strong>
+            </div>
+            </div>
       </Section>
 
       <Section title="TERRAIN / FOREST">
